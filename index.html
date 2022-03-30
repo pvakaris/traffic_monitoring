@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title> Traffic monitoring </title>
+
+        <!-- SCRIPTS -->
+        <script src="https://api.mqcdn.com/sdk/mapquest-js/v1.3.2/mapquest.js"></script>
+        <link type="text/css" rel="stylesheet" href="https://api.mqcdn.com/sdk/mapquest-js/v1.3.2/mapquest.css" />
+
+        <script>
+
+            const key = "w22oxywAJMOpFJPlVIikrDT83p24eCn9"; // Unique KEY that is used to access the remote repository which stores data about the traffic.
+            const filters = "filters=construction,incidents" // Which incidents to retrieve.
+            var map;
+
+            function initialiseMap(latitude, longitude) {  // Used to initialise the map object to show a new location.
+                L.mapquest.key = key;
+
+                // 'map' refers to a <div> element with the ID map
+                map = L.mapquest.map('map', {
+                    center: [parseFloat(latitude), parseFloat(longitude)],
+                    layers: L.mapquest.tileLayer('map'),
+                    zoom: 12
+                });
+            }
+
+            function update(latitude, longitude) {
+                updateMap(latitude, longitude);
+                var link = "http://www.mapquestapi.com/traffic/v2/incidents?";
+                link += "key=" + key + "&" + getBoundingBoxString(latitude, longitude) + "&" + filters; // Construction of the link that is used to get the .json file with traffic incidents in the given location
+                loadTrafficData(link);
+            }
+
+            function getBoundingBoxString(latitude, longitude) {
+                return "boundingBox=" + (parseFloat(latitude) - 0.22) + "," + (parseFloat(longitude) - 0.22) + "," + (parseFloat(latitude) + 0.22) + "," + (parseFloat(longitude) + 0.22);
+            }
+ 
+            function updateMap(latitude, longitude) {
+                if (typeof map == 'undefined') {
+                    initialiseMap(latitude, longitude);
+                }
+                else { // If some map is already being shown to the user - rewrite it. Also removes all the blue circles that mark incidents.
+                    map.remove();
+                    initialiseMap(latitude, longitude);
+                }
+            }
+            function loadTrafficData(link) {
+                clearTable(); // Clear all the table that contains traffic incidents
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('get', link, true);
+                xhr.send();
+
+                xhr.onreadystatechange = function () {
+                    if(xhr.readyState == 4) {
+                        if(xhr.status == 200) {
+                            console.log("File was found.");
+                            d=new Date(2020,11,13);
+                            console.log(myDate(d));
+                            try {
+                                const jsonData = JSON.parse(xhr.responseText);
+                                fillTableAndMarkMap(jsonData);
+                            } catch (e) {
+                                console.warn("Ooops... something went wrong");
+                            }
+                        }
+
+                        if(xhr.status == 404) {    
+                            console.log("The requested file was not found.");
+                        }
+                    }
+                }
+            }
+
+            function fillTableAndMarkMap(jsonData) {
+                let i = 0; // Used to numerate incidents
+
+                jsonData.incidents.forEach(element => {
+                    markSponOnMap(element.lat, element.lng);
+                    const tr = document.createElement("tr"); // Creates a new table row and 2 table columns (For incident's number and its description)
+                    const td1 = document.createElement("td");
+                    const td2 = document.createElement("td");
+                    td1.textContent = i;
+                    td2.textContent = element.shortDesc;
+                    tr.appendChild(td1);
+                    tr.appendChild(td2);
+                    document.getElementById("citiesTableBody").appendChild(tr);
+                    i++;
+                });
+            }
+
+            function clearTable() {
+                let tableBody = document.getElementById("citiesTableBody");
+                while(tableBody.firstChild) {
+                    tableBody.removeChild(tableBody.firstChild);
+                }
+            }
+
+            function markSponOnMap(latitude, longitude) {
+                L.circle([latitude, longitude], { radius: 2 }).addTo(map);
+            }
+
+            function checkIfCityIsSelected() { // Check whether the user selected a city in the drop-down menu or the default choice "Choose a city" which should only send an aler to the console.
+                var citiesList = document.getElementById("listOfCities");
+                if (!citiesList.selectedIndex == 0) {
+                    var selected = citiesList.options[citiesList.selectedIndex];
+                    var latitude = selected.getAttribute("latitude");
+                    var longitude = selected.getAttribute("longitude");
+                    update(latitude, longitude);
+                }
+                else {
+                    console.warn("Please select a city.");
+                }
+            }
+
+        </script>
+
+        <!-- A little local stylesheet to make the website more elegant -->
+        <style>
+            table, th, td, hr {
+                border: 1px solid black;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .textStandard {
+                font-family: Arial, Helvetica, sans-serif;
+            }
+
+        </style>
+
+    </head>
+    <body>
+
+        <!-- Greeting message part -->
+        <p class = "textStandard">
+            Hi! Welcome to the traffic monitoring webpage. Here you can view the map of the provided cities and see where traffic incidents or construction works are currently happening.
+        </p>
+
+        <!-- Instruction part -->
+        <p class = "textStandard">
+            How to use:
+            <ul class = "textStandard">
+                <li>Select a city from the provided drop-down list;</li>
+                <li>Press the button that says "See incidents";</li>
+            </ul>  
+        </p>
+        <p class = "textStandard">
+            Yes, it is that simple! Have a wonderful experience looking at the traffic incidents :)
+        </p>
+
+        <!-- Drop-down list with all the city options. Each city stores its longitude and latitude coordinates which are later retrieved by appropriate functions. -->
+        <select class = "textStandard" id = "listOfCities">
+            <option selected = "selected">Choose a city</option>
+            <option latitude = "40.71" longitude = "-74.00">New York</option>
+            <option latitude = "34.05" longitude = "-118.24">Los Angeles</option>
+            <option latitude = "41.85" longitude = "-87.65">Chicago</option>
+            <option latitude = "47.60" longitude = "-122.33">Seattle</option>
+            <option latitude = "38.89" longitude = "-77.03">Washington DC</option>
+        </select>
+
+        <button class = "textStandard" type="button" onclick="checkIfCityIsSelected()"> <b> See incidents </b> </button> 
+
+        <hr class = "line">
+
+        <!-- The map container -->
+        <div id="map" style="width: 100%; height: 530px; background-color: #e4e4e4;"></div>
+
+        <hr class = "line">
+
+        <!-- A table where textual form of traffic incidents is to be displayed -->       
+        <table class = "textStandard" id="citiesTable">
+            <thead>
+                <tr>
+                    <th>Number</th>
+                    <th>Description</th> 
+                </tr>
+            </thead>
+            <tbody id="citiesTableBody"> </tbody>
+        </table>
+
+    </body>
+</html>
